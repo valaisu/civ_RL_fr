@@ -1,0 +1,38 @@
+[project]
+name = "civrl"
+version = "0.1.0"
+description = "RL agents for a simplified Civilization 6 combat game"
+readme = "README.md"
+authors = [
+    { name = "valaisu", email = "hallman.valo@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "pygame-ce>=2.5.8",
+    "torch>=2.14.1",
+]
+
+[project.scripts]
+civrl-train = "civrl.train:main"
+civrl-plot = "civrl.plots:main"
+civrl-compare = "civrl.compare:main"
+civrl-gui = "civrl.gui:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
