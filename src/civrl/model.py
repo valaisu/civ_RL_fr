@@ -39,6 +39,10 @@ class Policy(nn.Module):
         self.fort_head = nn.Sequential(nn.Linear(ch * 3, hid), nn.ReLU(), nn.Linear(hid, n_actions - N_OFFSETS))
         self.value_head = nn.Sequential(nn.Linear(ch * 3, hid), nn.ReLU(), nn.Linear(hid, 1))
 
+    @property
+    def device(self):
+        return self.targets.device
+
     def forward(self, grid, focus, mask=None):
         B = grid.shape[0]
         x = self.blocks(F.relu(self.stem(grid)))  # [B,C,H,W]

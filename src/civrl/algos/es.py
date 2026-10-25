@@ -45,7 +45,7 @@ def play(cfg, jobs):
         for js in by_net.values():
             net, greedy = jobs[js[0]][1][envs[js[0]].to_act()]
             with torch.no_grad():
-                logits, _ = net(*batch_obs([envs[j].observe(envs[j].to_act()) for j in js]))
+                logits, _ = net(*batch_obs([envs[j].observe(envs[j].to_act()) for j in js], net.device))
             acts = logits.argmax(1) if greedy else torch.distributions.Categorical(logits=logits).sample()
             for j, a in zip(js, acts.tolist()):
                 steps[j] += 1
@@ -65,7 +65,8 @@ class ES(Algo):
     def update(self):
         a, r = self.args, self.runner
         theta = parameters_to_vector(self.net.parameters()).detach()
-        noise = torch.as_tensor(self.rng.standard_normal((a.es_pop, len(theta))), dtype=torch.float32)
+        noise = torch.as_tensor(self.rng.standard_normal((a.es_pop, len(theta))), dtype=torch.float32,
+                                device=theta.device)
         for i, c in enumerate(self.cands):
             sign = 1 if i % 2 == 0 else -1
             vector_to_parameters(theta + sign * a.es_sigma * noise[i // 2], c.parameters())
@@ -90,7 +91,7 @@ class ES(Algo):
         ranks = np.empty(len(fit))
         ranks[np.argsort(fit)] = np.arange(len(fit))
         ranks = ranks / (len(fit) - 1) - 0.5
-        w = torch.as_tensor(ranks[0::2] - ranks[1::2], dtype=torch.float32)
+        w = torch.as_tensor(ranks[0::2] - ranks[1::2], dtype=torch.float32, device=theta.device)
         grad = -(w @ noise) / (2 * a.es_pop * a.es_sigma)  # minus: Adam minimizes
         self.opt.zero_grad()
         for p, g in zip(self.net.parameters(), _split(grad, self.net)):

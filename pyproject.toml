@@ -11,8 +11,13 @@ dependencies = [
     "matplotlib>=3.11.2",
     "numpy>=2.5.4",
     "pygame-ce>=2.5.8",
-    "torch>=2.14.1",
 ]
+
+# PyTorch build, chosen once per machine: uv sync --extra cpu | cu126 | cu130 (see COMMANDS.md)
+[project.optional-dependencies]
+cpu = ["torch>=2.14.1"]
+cu126 = ["torch>=2.14.1"]
+cu130 = ["torch>=2.14.1"]
 
 [project.scripts]
 civrl-train = "civrl.train:main"
@@ -24,13 +29,30 @@ civrl-gui = "civrl.gui:main"
 requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu126" }, { extra = "cu130" }]]
+
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu126", extra = "cu126" },
+    { index = "pytorch-cu130", extra = "cu130" },
+]
 
 [dependency-groups]
 dev = [

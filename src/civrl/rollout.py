@@ -19,16 +19,16 @@ from .scenarios import make_env
 from .scripted import scripted_action
 
 
-def batch_obs(obs):
-    return (torch.as_tensor(np.stack([o["grid"] for o in obs])),
-            torch.as_tensor(np.array([o["focus"] for o in obs])),
-            torch.as_tensor(np.stack([o["mask"] for o in obs])))
+def batch_obs(obs, device="cpu"):
+    return (torch.as_tensor(np.stack([o["grid"] for o in obs]), device=device),
+            torch.as_tensor(np.array([o["focus"] for o in obs]), device=device),
+            torch.as_tensor(np.stack([o["mask"] for o in obs]), device=device))
 
 
 @torch.no_grad()
 def sample_actions(net, obs):
-    logits, _ = net(*batch_obs(obs))
-    return torch.distributions.Categorical(logits=logits).sample().numpy()
+    logits, _ = net(*batch_obs(obs, net.device))
+    return torch.distributions.Categorical(logits=logits).sample().cpu().numpy()
 
 
 class Runner:

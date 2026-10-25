@@ -31,10 +31,10 @@ from .base import Algo
 
 def sample_policy(net):
     def policy(runner, env_ids, obs):
-        logits, val = net(*batch_obs(obs))
+        logits, val = net(*batch_obs(obs, net.device))
         dist = torch.distributions.Categorical(logits=logits)
         act = dist.sample()
-        return {"act": act.numpy(), "logp": dist.log_prob(act).numpy(), "val": val.numpy()}
+        return {"act": act.cpu().numpy(), "logp": dist.log_prob(act).cpu().numpy(), "val": val.cpu().numpy()}
     return policy
 
 
@@ -43,7 +43,7 @@ def boot_values(net, boot_obs):
     if not boot_obs:
         return {}
     tids = list(boot_obs)
-    _, v = net(*batch_obs([boot_obs[t] for t in tids]))
+    _, v = net(*batch_obs([boot_obs[t] for t in tids], net.device))
     return dict(zip(tids, v.tolist()))
 
 
@@ -55,14 +55,15 @@ def policy_update(algo, b, adv, ret, epochs, minibatch, clip):
     """Policy-gradient update on batch b. clip=None gives the plain policy gradient.
     ret=None: no value loss."""
     net, opt, args = algo.net, algo.opt, algo.args
-    T = {k: torch.as_tensor(b[k]) for k in ("grid", "focus", "mask", "act", "logp")}
+    dev = net.device
+    T = {k: torch.as_tensor(b[k], device=dev) for k in ("grid", "focus", "mask", "act", "logp")}
     T["grid"] = T["grid"].float()
-    adv_t = torch.as_tensor(adv, dtype=torch.float32)
-    ret_t = None if ret is None else torch.as_tensor(ret, dtype=torch.float32)
+    adv_t = torch.as_tensor(adv, dtype=torch.float32, device=dev)
+    ret_t = None if ret is None else torch.as_tensor(ret, dtype=torch.float32, device=dev)
     n = len(adv_t)
     stats = []
     for _ in range(epochs):
-        perm = torch.randperm(n)
+        perm = torch.randperm(n, device=dev)
         for s in range(0, n, minibatch):
             i = perm[s:s + minibatch]
             logits, v = net(T["grid"][i], T["focus"][i], T["mask"][i])

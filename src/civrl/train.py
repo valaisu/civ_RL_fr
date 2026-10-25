@@ -27,7 +27,7 @@ from .env import N_CHANNELS
 from .scenarios import make_config, make_env
 from .model import Policy
 from .plots import plot_run
-from .rollout import Runner
+from .rollout import Runner, batch_obs
 from .scripted import scripted_action
 
 
@@ -82,9 +82,7 @@ def evaluate(net, cfg, learner_side, opponents, n_eps=50, seed=12345):
                     if p == me or opp is not None:
                         o = env.observe(p)
                         with torch.no_grad():
-                            logits, _ = (net if p == me else opp)(
-                                torch.as_tensor(o["grid"][None]), torch.as_tensor([o["focus"]]),
-                                torch.as_tensor(o["mask"][None]))
+                            logits, _ = (net if p == me else opp)(*batch_obs([o], net.device))
                         a = int(logits.argmax()) if p == me else int(torch.distributions.Categorical(logits=logits).sample())
                     else:
                         a = scripted_action(env, p)
@@ -157,7 +155,7 @@ def print_params(args, cfg, n_players, out, algo):
         ("rollout", collect),
         ("network", f"{args.ch} channels, {args.blocks} residual blocks"),
         ("eval", f"every {args.eval_every} updates, 50 games, learner greedy, vs {eval_vs}"),
-        ("system", f"seed={args.seed}, threads={args.threads}"),
+        ("system", f"seed={args.seed}, threads={args.threads}, device={args.device}"),
     ]
     for k, v in rows:
         print(f"  {k:<9} {v}")
@@ -241,6 +239,7 @@ def main():
     ap.add_argument("--init", default=None, help="checkpoint to start from")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--threads", type=int, default=8)
+    ap.add_argument("--device", default="auto", help="auto (cuda if available, else cpu) | cpu | cuda | cuda:N")
     args = ap.parse_args()
     if args.lr is None:
         args.lr = ALGOS[args.algo].lr
@@ -249,6 +248,8 @@ def main():
 
     torch.manual_seed(args.seed)
     torch.set_num_threads(args.threads)
+    if args.device == "auto":
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
     over = dict(random_map=not args.fixed_map, map_seed=args.map_seed, pre_scouted=args.pre_scouted,
                 full_vis=args.full_vis, shaping=args.shaping,
                 scout_w=args.scout_w, intel_w=args.intel_w, defense_w=args.defense_w,
@@ -262,7 +263,7 @@ def main():
     opp_mode, opp_net = args.opponent, None
     if args.opponent not in OPPONENT_MODES:
         opp_mode = "checkpoint"
-        opp_net = load_opponent(args.opponent, cfg, ap)
+        opp_net = load_opponent(args.opponent, cfg, ap).to(args.device)
     runner = Runner(cfg, args.envs, args.learner_side, opp_mode, args.seed, opp_net,
                     group_size=args.group_size if args.algo == "grpo" else 1)
     if args.alternate and (runner.n_players == 1 or args.learner_side == "both" or opp_mode in ("self", "mixed")):
@@ -271,6 +272,7 @@ def main():
     net = make_net(runner.envs[0], args.ch, args.blocks)
     if args.init:
         net.load_state_dict(torch.load(args.init)["model"])
+    net.to(args.device)
     if args.opponent == "frozen":
         runner.opp_net = copy.deepcopy(net).eval()
         runner.restart()  # the first episodes were seated before the snapshot existed
@@ -282,7 +284,7 @@ def main():
     (out / "config.json").write_text(json.dumps({"args": vars(args), "cfg": cfg.__dict__}, indent=2))
 
     def checkpoint():
-        return {"model": net.state_dict(), "cfg": cfg.__dict__, "ch": args.ch, "blocks": args.blocks,
+        return {"model": {k: v.cpu() for k, v in net.state_dict().items()}, "cfg": cfg.__dict__, "ch": args.ch, "blocks": args.blocks,
                 "algo": args.algo}
 
     total, update, t0 = 0, 0, time.time()

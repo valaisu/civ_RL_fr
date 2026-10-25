@@ -33,4 +33,4 @@
 - [ ] Strategic resources (Horses, Iron); owning the tile is enough
 
 ## Other
-- [ ] Switch to CUDA PyTorch once the GPU driver works again (needs a reboot: "Driver/library version mismatch")
+- [x] GPU support: per-machine PyTorch extras (cpu / cu126 / cu130), `--device auto`

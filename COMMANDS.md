@@ -1,6 +1,16 @@
 # Commands
 
-Run from the project root. `uv sync` installs dependencies, and `uv run pytest -q` runs the rule tests.
+Run from the project root. `uv run pytest -q` runs the rule tests.
+
+## Setup (once per machine)
+
+Pick the PyTorch build. Later `uv run` commands keep it; a plain `uv sync` without `--extra` would remove PyTorch.
+```bash
+uv sync --extra cpu      # no GPU (this laptop: saves ~3 GB of CUDA libraries)
+uv sync --extra cu130    # NVIDIA RTX 20-series or newer, driver >= 580
+uv sync --extra cu126    # older NVIDIA cards (GTX 10-series) or drivers >= 560
+```
+Training uses the GPU automatically when one is available (`--device auto`); `--device cpu` forces the CPU. The run's start-up print shows the device. Checkpoints are saved as CPU tensors, so they work on every machine.
 
 ## Train
 

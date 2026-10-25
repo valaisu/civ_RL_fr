@@ -3,7 +3,7 @@
 Small hex-map scenarios with Civ6 combat rules. Six interchangeable learning algorithms (`--algo`): PPO, A2C, REINFORCE, GRPO, DQN and evolution strategies.
 
 ```bash
-uv sync
+uv sync --extra cpu                                # or cu130 / cu126 for an NVIDIA GPU, see COMMANDS.md
 uv run pytest -q                                   # rule tests
 uv run civrl-train --scenario navigate --steps 300000
 uv run civrl-gui                                   # pick scenario + models, replay with arrow keys

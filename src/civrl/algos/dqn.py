@@ -61,15 +61,15 @@ class Replay:
         self.i = (self.i + k) % self.cap
         self.n = min(self.cap, self.n + k)
 
-    def sample(self, batch, alpha, beta, rng):
+    def sample(self, batch, alpha, beta, rng, device):
         p = self.prio[:self.n] ** alpha
         p /= p.sum()
         idx = rng.choice(self.n, batch, p=p)
         w = (self.n * p[idx]) ** -beta
-        out = {f: torch.as_tensor(self.d[f][idx]) for f in self.FIELDS}
+        out = {f: torch.as_tensor(self.d[f][idx], device=device) for f in self.FIELDS}
         for f in ("grid", "next_grid"):
             out[f] = out[f].float() / 255
-        return idx, torch.as_tensor(w / w.max(), dtype=torch.float32), out
+        return idx, torch.as_tensor(w / w.max(), dtype=torch.float32, device=device), out
 
 
 def nstep_transitions(b, boot_obs, n, gamma):
@@ -122,8 +122,8 @@ class DQN(Algo):
         return max(a.eps_end, 1 - (1 - a.eps_end) * self.progress / a.eps_frac)
 
     def policy(self, runner, env_ids, obs):
-        logits, _ = self.net(*batch_obs(obs))
-        act = logits.argmax(1).numpy()
+        logits, _ = self.net(*batch_obs(obs, self.net.device))
+        act = logits.argmax(1).cpu().numpy()
         eps = self.eps()
         for i, o in enumerate(obs):
             if self.rng.random() < eps:
@@ -141,7 +141,7 @@ class DQN(Algo):
         beta = 0.4 + 0.6 * min(1.0, self.progress)
         rows = []
         for _ in range(math.ceil(a.replay_ratio * n / a.minibatch)):
-            idx, w, t = self.replay.sample(a.minibatch, a.per_alpha, beta, self.rng)
+            idx, w, t = self.replay.sample(a.minibatch, a.per_alpha, beta, self.rng, self.net.device)
             logits, val = self.net(t["grid"], t["focus"], t["mask"])
             q = q_values(logits, val, t["mask"]).gather(1, t["act"][:, None]).squeeze(1)
             with torch.no_grad():
@@ -157,7 +157,7 @@ class DQN(Algo):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.net.parameters(), 10)
             self.opt.step()
-            self.replay.prio[idx] = (q - y).abs().detach().numpy() + 1e-3
+            self.replay.prio[idx] = (q - y).abs().detach().cpu().numpy() + 1e-3
             self.grad_steps += 1
             if self.grad_steps % a.target_every == 0:
                 self.target.load_state_dict(self.net.state_dict())
